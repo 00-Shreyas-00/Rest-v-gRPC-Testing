@@ -1,0 +1,95 @@
+// Product Catalog API, gRPC equivalent of the REST endpoints.
+//
+//   REST                              gRPC
+//   GET    /products/{id}             GetProduct
+//   GET    /products?limit&offset     ListProducts
+//   GET    /products/search?q&limit   SearchProducts
+//   POST   /products                  CreateProduct
+//   PUT    /products/{id}             UpdateProduct
+//   DELETE /products/{id}             DeleteProduct
+//   GET    /health                    grpc.health.v1.Health/Check
+//
+// Fields mirror the REST JSON one to one. Validation, defaults and errors are
+// the same as REST (see README "Shared rules"):
+//   validation failure -> INVALID_ARGUMENT with google.rpc.BadRequest details
+//   unknown id         -> NOT_FOUND
+//   anything else      -> INTERNAL
+//
+// Generated code: scripts/gen-proto.sh -> go-server/gen/productv1.
+syntax = "proto3";
+
+package product.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "go-vs-ts-benchmark/go-server/gen/productv1;productv1";
+
+service ProductService {
+  rpc GetProduct(GetProductRequest) returns (Product);
+  rpc ListProducts(ListProductsRequest) returns (ProductList);
+  rpc SearchProducts(SearchProductsRequest) returns (ProductList);
+  rpc CreateProduct(CreateProductRequest) returns (Product);
+  rpc UpdateProduct(UpdateProductRequest) returns (Product);
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
+}
+
+message Product {
+  int64 id = 1;
+  string name = 2;
+  string description = 3;
+  string category = 4;
+  double price = 5;
+  int32 stock = 6;
+  double rating = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// Same shape as the REST body {"products":[...]}.
+message ProductList {
+  repeated Product products = 1;
+}
+
+message GetProductRequest {
+  int64 id = 1;
+}
+
+// `optional` distinguishes "not sent" (default applies: limit 20, offset 0)
+// from "sent 0" (validation error), exactly like an absent vs. empty REST
+// query parameter.
+message ListProductsRequest {
+  optional int32 limit = 1;
+  optional int32 offset = 2;
+}
+
+// limit defaults to 50 when not sent.
+message SearchProductsRequest {
+  string query = 1;
+  optional int32 limit = 2;
+}
+
+message CreateProductRequest {
+  string name = 1;
+  string description = 2;
+  string category = 3;
+  double price = 4;
+  int32 stock = 5;
+  double rating = 6;
+}
+
+// Replaces all writable fields (PUT semantics).
+message UpdateProductRequest {
+  int64 id = 1;
+  string name = 2;
+  string description = 3;
+  string category = 4;
+  double price = 5;
+  int32 stock = 6;
+  double rating = 7;
+}
+
+message DeleteProductRequest {
+  int64 id = 1;
+}
+
+message DeleteProductResponse {}

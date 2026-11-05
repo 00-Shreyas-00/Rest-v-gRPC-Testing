@@ -1,0 +1,23 @@
+# CPU pinning instead of CFS quotas. Each container may run only on the listed
+# CPUs, with no time quota, so it is never throttled. Use for runtime
+# comparisons; see README "CPU limits: quota vs pinning".
+#
+#   COMPOSE_PATH_SEPARATOR=: COMPOSE_FILE=docker-compose.yml:docker-compose.pinned.yml docker compose up -d
+#
+# All three servers share SERVER_CPUSET (only one is loaded at a time), so
+# every server runs on exactly the same CPUs.
+
+x-pinned-server: &pinned-server
+  cpus: 0
+  cpuset: "${SERVER_CPUSET:-2}"
+
+services:
+  go-rest: *pinned-server
+  ts-rest: *pinned-server
+  go-grpc: *pinned-server
+  postgres:
+    cpus: 0
+    cpuset: "${POSTGRES_CPUSET:-3-5}"
+  k6:
+    cpus: 0
+    cpuset: "${K6_CPUSET:-6-11}"

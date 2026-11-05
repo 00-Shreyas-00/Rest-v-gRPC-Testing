@@ -1,0 +1,233 @@
+{
+  "reason": "run overlapped a Windows Modern Standby period (machine suspended)",
+  "standby_periods": [
+    [
+      "2026-11-05T05:23:48.523Z",
+      "2026-11-05T05:23:48.877Z"
+    ],
+    [
+      "2026-11-05T11:07:36.430Z",
+      "2026-11-05T11:56:43.406Z"
+    ],
+    [
+      "2026-11-05T12:08:17.910Z",
+      "2026-11-05T12:12:23.331Z"
+    ],
+    [
+      "2026-11-05T12:23:15.393Z",
+      "2026-11-05T12:31:47.661Z"
+    ],
+    [
+      "2026-11-05T12:31:47.663Z",
+      "2026-11-05T12:31:57.280Z"
+    ],
+    [
+      "2026-11-05T12:38:46.499Z",
+      "2026-11-05T13:26:14.042Z"
+    ],
+    [
+      "2026-11-05T13:26:14.044Z",
+      "2026-11-05T14:53:41.662Z"
+    ]
+  ],
+  "excluded": [
+    {
+      "workload": "list-products-limit100",
+      "target": "go-rest",
+      "vus": 250,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:07:22Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "ts-rest",
+      "vus": 250,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:08:03Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "go-grpc",
+      "vus": 250,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:08:43Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "go-rest",
+      "vus": 500,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:09:24Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "ts-rest",
+      "vus": 500,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:10:04Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "go-grpc",
+      "vus": 500,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:10:45Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "go-rest",
+      "vus": 1000,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:11:26Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "ts-rest",
+      "vus": 1000,
+      "repeat": 2,
+      "started_at": "2026-11-05T11:12:07Z",
+      "standby": [
+        "2026-11-05T11:07:36.430Z",
+        "2026-11-05T11:56:43.406Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "go-rest",
+      "vus": 500,
+      "repeat": 3,
+      "started_at": "2026-11-05T12:07:44Z",
+      "standby": [
+        "2026-11-05T12:08:17.910Z",
+        "2026-11-05T12:12:23.331Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit100",
+      "target": "ts-rest",
+      "vus": 500,
+      "repeat": 3,
+      "started_at": "2026-11-05T12:08:25Z",
+      "standby": [
+        "2026-11-05T12:08:17.910Z",
+        "2026-11-05T12:12:23.331Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-grpc",
+      "vus": 100,
+      "repeat": 1,
+      "started_at": "2026-11-05T12:22:56Z",
+      "standby": [
+        "2026-11-05T12:23:15.393Z",
+        "2026-11-05T12:31:47.661Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-rest",
+      "vus": 1,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:38:27Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "ts-rest",
+      "vus": 1,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:39:06Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-grpc",
+      "vus": 1,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:39:46Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-rest",
+      "vus": 10,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:40:26Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "ts-rest",
+      "vus": 10,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:41:07Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-grpc",
+      "vus": 10,
+      "repeat": 2,
+      "started_at": "2026-11-05T12:41:47Z",
+      "standby": [
+        "2026-11-05T12:38:46.499Z",
+        "2026-11-05T13:26:14.042Z"
+      ]
+    },
+    {
+      "workload": "list-products-limit500",
+      "target": "go-rest",
+      "vus": 50,
+      "repeat": 2,
+      "started_at": "2026-11-05T13:26:18Z",
+      "standby": [
+        "2026-11-05T13:26:14.044Z",
+        "2026-11-05T14:53:41.662Z"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# LF everywhere, including Windows checkouts: scripts, SQL and sources are
+# mounted into or copied into Linux containers.
+* text=auto eol=lf
+*.png binary

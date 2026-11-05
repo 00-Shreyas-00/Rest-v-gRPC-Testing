@@ -1,0 +1,9 @@
+.env
+results/*
+!results/.gitkeep
+node_modules/
+.tmp*/
+dist/
+bin/
+*.test
+*.out

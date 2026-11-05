@@ -1,0 +1,142 @@
+name: go-vs-ts-benchmark
+
+# `docker compose up -d` starts PostgreSQL, initialises it (migrate + seed if
+# empty), then the three API servers:
+#
+#   go-rest   http://localhost:8080   Go REST + JSON
+#   ts-rest   http://localhost:8081   TypeScript REST + JSON
+#   go-grpc   localhost:9090          Go gRPC + Protobuf (plaintext HTTP/2)
+#
+# All servers share one configuration block (x-server) and identical resource
+# limits. Switch data source with:  DATA_SOURCE=memory docker compose up -d
+# See .env.example for every variable.
+
+x-server: &server
+  restart: unless-stopped
+  depends_on:
+    db-init:
+      condition: service_completed_successfully
+  environment:
+    DATA_SOURCE: ${DATA_SOURCE:-postgres}
+    DATABASE_URL: postgres://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@postgres:5432/${POSTGRES_DB:-products}
+    DB_MAX_CONNS: ${DB_MAX_CONNS:-20}
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    LOG_REQUESTS: ${LOG_REQUESTS:-false}
+    METRICS_PORT: "9100"
+  # Identical CPU and memory limits for every server. Go sets GOMAXPROCS from
+  # the CPU limit; Node.js runs JavaScript on one thread regardless.
+  cpus: ${SERVER_CPUS:-2}
+  mem_limit: ${SERVER_MEMORY:-1g}
+
+x-postgres-env: &postgres-env
+  POSTGRES_USER: ${POSTGRES_USER:-bench}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bench}
+  POSTGRES_DB: ${POSTGRES_DB:-products}
+
+services:
+  postgres:
+    build: ./database
+    image: go-vs-ts-benchmark/postgres:18.1
+    environment: *postgres-env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    shm_size: 256mb
+    cpus: ${POSTGRES_CPUS:-4}
+    mem_limit: ${POSTGRES_MEMORY:-2g}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: create database, apply migrations, seed if empty, then exit.
+  # Also used by scripts/db.sh for migrate/seed/reset/verify.
+  db-init:
+    build: ./database
+    image: go-vs-ts-benchmark/postgres:18.1
+    entrypoint: ["sh", "/database/manage.sh"]
+    command: ["init"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-bench}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-bench}
+      PGDATABASE: ${POSTGRES_DB:-products}
+      PRODUCT_COUNT: ${PRODUCT_COUNT:-100000}
+    volumes:
+      - ./database:/database:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  go-rest:
+    <<: *server
+    build:
+      context: ./go-server
+      target: rest
+    image: go-vs-ts-benchmark/go-rest:local
+    ports:
+      - "${GO_REST_PORT:-8080}:8080"
+      - "${GO_REST_METRICS_PORT:-9101}:9100"
+
+  go-grpc:
+    <<: *server
+    build:
+      context: ./go-server
+      target: grpc
+    image: go-vs-ts-benchmark/go-grpc:local
+    ports:
+      - "${GO_GRPC_PORT:-9090}:9090"
+      - "${GO_GRPC_METRICS_PORT:-9103}:9100"
+
+  ts-rest:
+    <<: *server
+    build: ./typescript-server
+    image: go-vs-ts-benchmark/ts-rest:local
+    ports:
+      - "${TS_REST_PORT:-8081}:8080"
+      - "${TS_REST_METRICS_PORT:-9102}:9100"
+
+  # k6 load generator on the compose network, so traffic goes container to
+  # container without Docker Desktop's port-forwarding proxy. Run through
+  # scripts/bench.sh. Not started by `docker compose up` (bench profile).
+  k6:
+    image: grafana/k6:2.2.0
+    profiles: [bench]
+    working_dir: /scripts
+    volumes:
+      - ./benchmark:/scripts:ro
+      - ./proto:/proto:ro
+      - ./results:/results
+    environment:
+      K6_NO_USAGE_REPORT: "true"
+    cpus: ${K6_CPUS:-4}
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # Go toolchain for tests and code generation without a local Go install:
+  #   docker compose run --rm go go test ./...
+  # Not started by `docker compose up` (tools profile).
+  go:
+    image: golang:1.26.3
+    profiles: [tools]
+    working_dir: /src
+    volumes:
+      - ./go-server:/src
+      - ./proto:/proto:ro
+      - gomodcache:/go/pkg/mod
+      - gobuildcache:/root/.cache/go-build
+    environment:
+      TEST_DATABASE_URL: postgres://${POSTGRES_USER:-bench}:${POSTGRES_PASSWORD:-bench}@postgres:5432/products_test
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  gomodcache:
+  gobuildcache:
