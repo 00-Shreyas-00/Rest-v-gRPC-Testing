@@ -17,9 +17,9 @@ Two separate variables are under test, and they are kept apart on purpose:
 Experiment C (TypeScript REST vs Go gRPC) compares the complete stacks, but on its own
 it cannot say which variable caused a difference.
 
-> **Status:** All ten phases are implemented. The first benchmark session (2026-11-05)
-> covers **database mode only**: get-product and all four list sizes. Search and in-memory
-> mode were not measured. See [Results](#results-2026-11-05-database-mode).
+> **Status:** All ten phases are implemented, and the full benchmark matrix has been run:
+> both data modes, all workloads, 1–1000 VUs, 3 repeats, 756 runs on 2026-11-06. See
+> [Results](#results).
 
 ## Quick start
 
@@ -71,109 +71,168 @@ Run a benchmark (k6 in a container, all three servers, every concurrency level):
 scripts/bench.sh get-product
 ```
 
-## Results (2026-11-05, database mode)
+## Results
 
-Full report, CSV and raw per-run data:
-[docs/results/2026-11-05-postgres-pinned/](docs/results/2026-11-05-postgres-pinned/report.md).
+The 2026-11-06 session covers the full matrix: both data modes, every workload, 1–1000
+VUs, 3 repeats, 756 runs. The full report, CSV and raw per-run data are in
+[docs/results/2026-11-06-full-pinned/](docs/results/2026-11-06-full-pinned/report.md).
 
 ### What was measured
 
 | | |
 |---|---|
-| Machine | Laptop, Intel i5-12450H (4 performance + 4 efficiency cores, 12 threads), Windows 11, Docker Desktop 29.7.2 (WSL2 VM: 12 vCPUs, 7.6 GiB) |
+| Machine | Laptop, Intel i5-12450H (4 performance + 4 efficiency cores, 12 threads), Windows 11, Docker Desktop 29.7.2 (WSL2 VM: 12 vCPUs, 7.6 GiB), plugged in, sleep and screen-off disabled |
 | Versions | Go 1.26.3, Node.js 24.22.0, TypeScript 7.0.2, Fastify 5.12.7, grpc-go 1.84.0, PostgreSQL 18.1, k6 2.2.0 |
-| CPU | each server **pinned to one vCPU** (no quota); PostgreSQL 3 vCPUs; k6 6 vCPUs, never CPU-bound in any run |
-| Data | PostgreSQL, 100,000 products (checksum `d26bc7a6…`), pool of 20 connections per server, warm cache |
-| Workloads | get one product (1000 deterministic ids); list 10 / 50 / 100 / 500 products (first 20 pages) |
-| Load | closed model, 1–1000 concurrent VUs, 10 s warm-up + 20 s measured, 3 interleaved repeats |
-| Network | container to container on the Docker bridge network, plaintext (no TLS), HTTP/1.1 keep-alive and HTTP/2 |
-| Correctness | equivalence suite passed on all three servers before the run (1204 REST + 1188 gRPC requests per mode) |
-| Runs | 297 kept; 18 excluded because the laptop entered Windows Modern Standby during them ([exclusions.json](docs/results/2026-11-05-postgres-pinned/exclusions.json)) |
+| CPU | each server **pinned to one vCPU** with no quota (essentially the whole core in use from 10 VUs up); PostgreSQL on 3 vCPUs; k6 on 6 vCPUs (database mode) or 9 (memory mode), never CPU-bound |
+| Memory | 1 GiB limit per server |
+| Data | 100,000 products (checksum `d26bc7a6…`, verified in every pass). Database mode: PostgreSQL with a pool of 20 connections per server and a warm cache. Memory mode: the same rows held in process memory. |
+| Workloads | get one product (1000 deterministic ids); list 10 / 50 / 100 / 500 products (first 20 pages); search (5 terms, 50 results each) |
+| Load | closed model; 1, 10, 50, 100, 250, 500, 1000 concurrent VUs; 10 s warm-up + 20 s measured; 3 repeats interleaved over the session |
+| Network | container to container on the Docker bridge network, plaintext (no TLS); HTTP/1.1 keep-alive and HTTP/2, one connection per VU |
+| Correctness | the equivalence suite passed in both modes before the load (1204 REST + 1188 gRPC requests per mode) |
+| Run quality | no standby, no excluded runs, no client saturation; the spread between repeats was mostly ±0–2% in memory mode and ±1–17% in database mode |
 
-**Not measured:** search, in-memory mode, more than one CPU per server, and quota-limited
-CPUs. The session was stopped after 315 of 756 planned runs.
+**Not measured:** more than one CPU per server, and CPU quotas instead of pinning. One CPU
+per server measures per-core efficiency, so these results do not include Go's ability to
+use several cores. A Node.js process runs JavaScript on one thread.
 
 ### Main numbers
 
-Throughput is the median req/s of 3 repeats; latency is the median p99. Each server had one
-dedicated CPU and used all of it at 10 VUs and above.
+Throughput (req/s, median of 3 repeats) and server CPU per request at 50 VUs.
+`*` = some requests timed out (over 10 s) in at least one repeat.
 
-| workload, VUs | Go REST | TS REST | Go gRPC |
-|---|---:|---:|---:|
-| get-product, 50 | 9,802 req/s, p99 13 ms | 5,546, p99 17 ms | 6,264, p99 18 ms |
-| get-product, 1000 | 8,379, p99 193 ms | 3,722, p99 424 ms | 5,434, p99 297 ms |
-| list 100, 100 | 1,481, p99 118 ms | 1,524, p99 116 ms | 1,638, p99 96 ms |
-| list 500, 250 | 373, p99 905 ms | 267, p99 1,212 ms | 404, p99 877 ms |
-| list 500, 1000 | 390, p99 3.1 s | 279 (2,848 timeouts > 10 s) | 389, p99 3.6 s |
+**Memory mode** (no database: runtime, HTTP/gRPC and serialization cost only):
 
-Server cost per request, in CPU ms (the most stable metric across repeats):
+| workload | Go REST @50 | TS REST @50 | Go gRPC @50 | Go REST @1000 | TS REST @1000 | Go gRPC @1000 | CPU ms/req @50: Go REST / TS / gRPC |
+|---|---:|---:|---:|---:|---:|---:|---|
+| get one product | 44,217 | 28,890 | 25,743 | 31,934 | 23,438 | 18,784 | 0.023 / 0.035 / 0.038 |
+| list 10 | 28,178 | 24,145 | 20,634 | 22,520 | 20,001 | 15,532 | 0.035 / 0.041 / 0.048 |
+| list 50 | 10,954 | 13,379 | 12,108 | 10,255 | 11,799* | 9,526 | 0.091 / 0.075 / 0.082 |
+| list 100 | 6,672 | 8,442 | 8,071 | 6,338 | 7,935* | 6,704 | 0.149 / 0.118 / 0.123 |
+| list 500 | 1,672 | 1,752 | 1,747 | 1,737 | 1,839* | 277* | 0.594 / 0.570 / 0.567 |
+| search | 9,621 | 9,978 | 10,110 | 8,976 | 9,000* | 8,089 | 0.104 / 0.100 / 0.098 |
 
-| workload (at 50–250 VUs) | Go REST | TS REST | Go gRPC |
-|---|---:|---:|---:|
-| get-product | 0.10–0.11 | 0.18–0.22 | 0.16–0.17 |
-| list 100 | 0.67–0.69 | 0.63–0.89 | 0.60–0.66 |
-| list 500 | 2.1–2.7 | 3.4–3.7 | 2.2–2.5 |
+**Database mode** (PostgreSQL):
 
-Memory and bytes on the wire:
-- **Peak RSS:** Go REST 21–77 MB, Go gRPC 36–150 MB, TS REST 123–187 MB.
-- **Bytes per request:** Protobuf responses were 35% smaller on the wire. List 500 was
+| workload | Go REST @50 | TS REST @50 | Go gRPC @50 | Go REST @1000 | TS REST @1000 | Go gRPC @1000 | CPU ms/req @50: Go REST / TS / gRPC |
+|---|---:|---:|---:|---:|---:|---:|---|
+| get one product | 13,262 | 10,040 | 10,803 | 14,344 | 7,352 | 8,823 | 0.075 / 0.100 / 0.092 |
+| list 10 | 10,279 | 7,790 | 8,081 | 9,839 | 5,405 | 6,776 | 0.097 / 0.128 / 0.123 |
+| list 50 | 4,523 | 4,343 | 4,362 | 4,511 | 2,952 | 3,655 | 0.220 / 0.229 / 0.229 |
+| list 100 | 2,789 | 2,875 | 2,792 | 2,825 | 1,964 | 2,464 | 0.357 / 0.348 / 0.355 |
+| list 500 | 749 | 563 | 772 | 779 | 522 | 699 | 1.331 / 1.775 / 1.288 |
+| search | 3,824 | 3,843 | 3,486 | 3,623 | 2,826 | 2,949 | 0.253 / 0.258 / 0.281 |
+
+Memory and wire bytes:
+- **Peak RSS, database mode:** Go REST 15–74 MB, Go gRPC 21–113 MB, TS REST 100–205 MB.
+- **Peak RSS, memory mode:** Go REST 88–138 MB, TS REST 175–244 MB, and Go gRPC 91–932 MB
+  (see finding 4).
+- **Wire bytes:** Protobuf responses were 35% smaller on the wire. A 500-item list was
   107 KB vs 165 KB, and a single product 295 B vs 453 B (Go REST) and 502 B (TS REST).
 
 ### Findings
 
-These apply to this machine, this workload and one dedicated CPU per server. They are
+These apply to this machine, these workloads and one dedicated CPU per server. They are
 not general claims about the technologies.
 
-1. **Experiment A, Go vs Node.js (both REST/JSON).**
-   - **Small responses:** Go REST delivered 1.6–2.3× the throughput of TS REST for single
-     products at every concurrency, with lower p99, and used about half the CPU per request.
-   - **Mid-size lists (100 items):** there was no clear difference at 10–100 VUs. Node was
-     sometimes slightly ahead, and the ratios fall within noise.
-   - **Large lists (500 items):** Go REST was 1.4× faster from 250 VUs up, and needed 30%
-     less CPU per request.
-   - **Overload:** at 500 and 1000 VUs on 500-item lists, TS REST hit the 10 s client
-     timeout for thousands of requests, while Go's latency rose more evenly.
-   - **Node's limit:** its event loop was 100% busy (utilization 1.0) from 10 VUs on, so
-     the single JavaScript thread was the limit.
-2. **Experiment B, REST/JSON vs gRPC/Protobuf (both Go, same service code).**
-   - **Small responses:** gRPC reached only 0.6–0.8× of REST's throughput and used about
-     60% more CPU per request, despite 35% fewer bytes. Per-call HTTP/2 and gRPC handling
-     costs more than the JSON it saves on a 300-byte message.
-   - **Lists of 100:** gRPC was about 1.1–1.2× faster at moderate concurrency.
-   - **Lists of 500:** throughput and CPU per request were equal within noise.
-   - **Bottom line:** in this setup, Protobuf's size advantage shows up on the network,
-     not as server CPU savings.
-3. **Experiment C, TS REST vs Go gRPC.** Go gRPC was 1.2–1.5× faster for most points, but
-   this compares complete stacks. The difference mixes the runtime effect (A, in Go's
-   favour) and the protocol effect (B, which here partly cancels it).
-4. **Memory.** Under the same load, Go REST used 2–6× and Go gRPC 1.2–3.5× less resident
-   memory than Node.js. gRPC's footprint grows with concurrency, at two goroutines per
-   connection.
+**1. Experiment A: Go vs Node.js (both REST/JSON).** Which is faster depends on response
+size and concurrency. Ratios are Go REST ÷ TS REST throughput, from 10 to 1000 VUs:
+
+| workload | memory mode | database mode, 10–100 VUs | database mode, 250–1000 VUs |
+|---|---|---|---|
+| get one product | Go 1.26–1.53× | Go 1.32–1.75× | Go 1.72–1.95× |
+| list 10 | Go 1.13–1.17× | Go 1.32–1.47× | Go 1.49–1.82× |
+| list 50 | **Node 1.15–1.22×** (Go 0.82–0.87×) | equal (Go 1.01–1.05×) | Go 1.39–1.53× |
+| list 100 | **Node 1.25–1.28×** (Go 0.78–0.80×) | equal (Go 0.93–0.98×) | Go 1.37–1.44× |
+| list 500 | Node 1.02–1.06× | Go 1.04–1.50× | Go 1.49–1.52× |
+| search | equal (Go 0.96–1.00×) | equal (Go 0.99–1.02×) | Go 1.25–1.28× |
+
+- **Small responses favour Go.** For a single product or a 10-item list, Go handled more
+  requests on the same core in both modes, using 15–35% less CPU per request.
+- **Mid-size lists favour Node without a database.** In memory mode, Node needed less CPU
+  per request for 50–100 items (0.118 vs 0.149 ms for 100 items). `JSON.stringify` on V8
+  serializes many small objects faster than Go's reflection-based `encoding/json`, and
+  the Node server keeps timestamps as ready-made strings, while Go formats them for
+  every response.
+- **Node degrades under high concurrency with the database.** From 250 VUs up, its CPU
+  per request rose by about 40% (list 100: 0.35 → 0.49 ms), while Go's stayed flat. That
+  is why Go leads at high concurrency for every list size.
+- **Node is unfair under overload.** In memory mode at 1000 VUs (lists of 50, 100 and 500,
+  and search), and at 500 VUs for 500-item lists, Node's throughput matched Go's or beat it,
+  but some requests starved. For
+  example, list 500 at 500 VUs: Node p50 140 ms but p99 10 s, with 390–468 timeouts per
+  run. Go's latencies stayed tightly grouped (p50 343 ms, p99 402 ms, no timeouts). Node
+  served most connections quickly and let a few wait until the client gave up.
+
+**2. Experiment B: REST/JSON vs gRPC/Protobuf (both Go, same service code).** Ratios are
+Go gRPC ÷ Go REST throughput:
+
+| workload | memory mode | database mode |
+|---|---|---|
+| get one product | 0.48–0.62× | 0.56–0.81× |
+| list 10 | 0.61–0.73× | 0.69–0.79× |
+| list 50 | 0.93–1.11× | 0.81–0.97× |
+| list 100 | **1.06–1.23×** | 0.87–1.01× |
+| list 500 | 1.01–1.05× (collapse at 1000 VUs, see 4) | 0.90–1.07× |
+| search | 0.90–1.06× | 0.81–0.91× |
+
+- **Small messages favour REST.** gRPC's per-call cost (HTTP/2 framing, gRPC handling, a
+  Protobuf message per response) outweighs the JSON it saves, at about 1.2–1.7× the CPU
+  per request.
+- **Mid-size lists favour gRPC, without the database.** In memory mode, gRPC overtook REST
+  at 50–100 items. Protobuf encodes many objects more cheaply than `encoding/json`.
+- **Large payloads and database work hide the difference.** With PostgreSQL in the path, the
+  protocol difference shrinks to within ±20%, and REST is ahead at most points.
+- **Size advantage only.** In this setup, Protobuf's 35% size advantage did not become a
+  CPU advantage on the server.
+
+**3. Experiment C: TS REST vs Go gRPC.** This compares complete stacks. The two variables
+partly cancel:
+- Memory mode: gRPC 0.6–0.9× of TS REST for most points, about equal for 500-item lists and
+  search.
+- Database mode: gRPC 0.9–1.5×, ahead at most points from 250 VUs.
+
+Neither stack wins across the board, and this experiment alone cannot say why.
+
+**4. Go gRPC under memory pressure.** Memory mode, 500-item lists, 1000 VUs: Go gRPC fell
+from about 1,700 to about 280 req/s in all three repeats.
+- Its CPU use dropped to about 0.3 cores, and p50 latency reached 3.4–4.6 s.
+- RSS reached about 1 GB, the container's limit; Go REST stayed at 137 MB under the same
+  load.
+- The next gRPC run still carried the inflated memory.
+
+The likely cause is about 1000 concurrent ~107 KB responses buffered in grpc-go per
+stream, which hits the memory limit. The REST server streams each response into the
+socket. This is an inference from the metrics, not a proven mechanism. Raising the memory
+limit or setting `GOMEMLIMIT` would test it.
+
+**5. Memory footprint.** Go REST's peak RSS was about 2× lower than Node.js's in memory mode
+and 3–7× lower in database mode. Go gRPC's footprint grows with concurrency (two goroutines and HTTP/2
+buffers per connection).
 
 ### Limits of this data
 
-- **Noise.** Identical runs on this laptop varied by up to ±30%, and much more for list-10
-  and list-50, whose ratios the report marks `≈` (inconclusive).
-  - The likely cause is Windows moving the Docker VM's virtual CPUs between performance
-    and efficiency cores, plus turbo and power-state changes.
-  - The machine also went into Modern Standby several times. Affected runs were excluded,
-    but the CPU state after waking differed.
-  - Results from a dedicated Linux host would be considerably tighter.
-- **Database mode only.** The servers each saturated their single core, so CPU per
-  request is meaningful. PostgreSQL still adds a fixed share of every request's latency.
-  In-memory mode, which isolates runtime and serialization cost, still has to be run.
-- **One CPU per server.** Go's advantage from multiple cores (Node.js uses one JavaScript
-  thread) is not part of these results. A 2-CPU run would add it; see
-  [CPU limits](#cpu-limits-quota-vs-pinning).
+- **One machine, one core per server.** These are results from a hybrid-core laptop
+  through a WSL2 VM. A dedicated Linux host, or more cores per server, may give different
+  ratios. Multi-core scaling, where Go and Node.js differ most, is not covered.
+- **Loopback network.** Container-to-container traffic has almost no latency or
+  bandwidth limit, which hides Protobuf's main advantage, smaller payloads. Over a real
+  network, gRPC's 35% size saving would matter more.
+- **One workload shape.** These are small read-only CRUD requests against a single table,
+  with no writes, auth, or business logic.
+- **Default serializers.** Neither server uses a code-generated or schema-compiled JSON
+  serializer, such as a Fastify response schema or a third-party Go encoder. Either could
+  change Experiment A.
+- **Superseded session.** An earlier partial session (2026-11-05,
+  [superseded](docs/results/2026-11-05-postgres-pinned/README.md)) ran while the laptop
+  kept entering Windows Modern Standby. It had 25–50% lower throughput and ±30–450%
+  spread, which is why sleep must be disabled for long runs.
 
-Reproduce or extend the session (search, memory mode and a 2-CPU pass; about 10 hours):
+Reproduce the session (about 8 hours; disable sleep and screen-off first):
 
 ```bash
 scripts/run-matrix.sh --session my-run --repeat 3 --warmup 10s --duration 20s --cooldown 3
 ```
-
-Before starting, set the screen timeout to "Never" while plugged in. On laptops with
-Modern Standby, a screen turning off suspends the run.
 
 ## Architecture
 

@@ -1,0 +1,63 @@
+ Container go-vs-ts-benchmark-postgres-1 Running 
+ Container go-vs-ts-benchmark-postgres-1 Waiting 
+ Container go-vs-ts-benchmark-postgres-1 Healthy 
+==> building images
+ Image go-vs-ts-benchmark/go-grpc:local Building 
+ Image go-vs-ts-benchmark/ts-rest:local Building 
+ Image go-vs-ts-benchmark/go-rest:local Building 
+ Image go-vs-ts-benchmark/ts-rest:local Built 
+ Image go-vs-ts-benchmark/go-rest:local Built 
+ Image go-vs-ts-benchmark/go-grpc:local Built 
+==> mode: postgres
+=== RUN   TestBenchmarkIDsMatchK6
+--- PASS: TestBenchmarkIDsMatchK6 (0.00s)
+=== RUN   TestEquivalence
+=== RUN   TestEquivalence/dataset_is_freshly_seeded
+=== RUN   TestEquivalence/REST_reads:_Go_and_TypeScript_byte-identical
+    equivalence_test.go:422: 1204 requests compared
+=== RUN   TestEquivalence/gRPC_reads:_same_data_and_errors_as_REST
+    equivalence_test.go:438: 1188 requests compared
+=== RUN   TestEquivalence/health
+=== RUN   TestEquivalence/REST_write_errors_byte-identical
+=== RUN   TestEquivalence/gRPC_write_validation_matches_REST
+=== RUN   TestEquivalence/write_flows_equivalent_on_all_three_servers
+=== RUN   TestEquivalence/dataset_unchanged_after_writes
+--- PASS: TestEquivalence (4.29s)
+    --- PASS: TestEquivalence/dataset_is_freshly_seeded (0.01s)
+    --- PASS: TestEquivalence/REST_reads:_Go_and_TypeScript_byte-identical (2.04s)
+    --- PASS: TestEquivalence/gRPC_reads:_same_data_and_errors_as_REST (2.13s)
+    --- PASS: TestEquivalence/health (0.00s)
+    --- PASS: TestEquivalence/REST_write_errors_byte-identical (0.04s)
+    --- PASS: TestEquivalence/gRPC_write_validation_matches_REST (0.01s)
+    --- PASS: TestEquivalence/write_flows_equivalent_on_all_three_servers (0.03s)
+    --- PASS: TestEquivalence/dataset_unchanged_after_writes (0.03s)
+PASS
+ok  	go-vs-ts-benchmark/go-server/equivalence	4.301s
+==> mode postgres: PASS
+==> mode: memory
+=== RUN   TestBenchmarkIDsMatchK6
+--- PASS: TestBenchmarkIDsMatchK6 (0.00s)
+=== RUN   TestEquivalence
+=== RUN   TestEquivalence/dataset_is_freshly_seeded
+=== RUN   TestEquivalence/REST_reads:_Go_and_TypeScript_byte-identical
+    equivalence_test.go:422: 1204 requests compared
+=== RUN   TestEquivalence/gRPC_reads:_same_data_and_errors_as_REST
+    equivalence_test.go:438: 1188 requests compared
+=== RUN   TestEquivalence/health
+=== RUN   TestEquivalence/REST_write_errors_byte-identical
+=== RUN   TestEquivalence/gRPC_write_validation_matches_REST
+=== RUN   TestEquivalence/write_flows_equivalent_on_all_three_servers
+=== RUN   TestEquivalence/dataset_unchanged_after_writes
+--- PASS: TestEquivalence (1.63s)
+    --- PASS: TestEquivalence/dataset_is_freshly_seeded (0.00s)
+    --- PASS: TestEquivalence/REST_reads:_Go_and_TypeScript_byte-identical (0.68s)
+    --- PASS: TestEquivalence/gRPC_reads:_same_data_and_errors_as_REST (0.82s)
+    --- PASS: TestEquivalence/health (0.00s)
+    --- PASS: TestEquivalence/REST_write_errors_byte-identical (0.03s)
+    --- PASS: TestEquivalence/gRPC_write_validation_matches_REST (0.01s)
+    --- PASS: TestEquivalence/write_flows_equivalent_on_all_three_servers (0.07s)
+    --- PASS: TestEquivalence/dataset_unchanged_after_writes (0.01s)
+PASS
+ok  	go-vs-ts-benchmark/go-server/equivalence	1.639s
+==> mode memory: PASS
+==> equivalence passed for: postgres memory

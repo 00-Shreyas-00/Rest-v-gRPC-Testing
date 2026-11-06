@@ -1,6 +1,10 @@
 # Benchmark session 2026-11-05: database mode, pinned CPUs
 
-This is the dataset behind the README's [Results](../../../README.md#results-2026-11-05-database-mode) section.
+> **Superseded by [2026-11-06-full-pinned](../2026-11-06-full-pinned/).** This partial
+> session ran while the laptop repeatedly entered Windows Modern Standby. Its run-to-run
+> spread was ±30–450%, and its throughput was 25–50% below the clean session's. Some of
+> its conclusions do not hold. It is kept to document the power-state problem and how it
+> was detected.
 
 | file | contents |
 |---|---|
