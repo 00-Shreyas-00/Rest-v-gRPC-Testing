@@ -1,0 +1,38 @@
+==> [18:54:25] session results/x2-full: 1344 runs (part A 972, part B 372), estimated ~10h 4m
+==> [18:54:25] parts: a b | repeat 3 | warm-up 5s, measured 15s, cool-down 2s
+==> [18:54:25] CPU: servers pinned to 2 (one core each, never loaded at the same time), load generator on 3-11
+==> [18:54:25] building images
+==> [18:54:30] starting servers (DATA_SOURCE=none, GOMEMLIMIT=900MiB, CPU 2) and the load generator (CPU 3-11)
+==> [18:54:44] equivalence check (loadgen verify)
+PASS: every server returns identical experiment-2 data
+==> [18:54:49] codec micro-benchmarks (one core, CPU 2)
+==> [18:55:40] network: lan
+==> [18:55:47] part A, lan, repeat 1 (run 0 done, 0 min elapsed)
+==> [19:38:10] part A, lan, repeat 2 (run 108 done, 42 min elapsed)
+==> [20:20:24] part A, lan, repeat 3 (run 216 done, 84 min elapsed)
+==> [21:02:33] network: dc
+==> [21:02:40] part A, dc, repeat 1 (run 324 done, 127 min elapsed)
+==> [05:52:36] part A, dc, repeat 2 (run 432 done, 657 min elapsed)
+==> [06:34:43] part A, dc, repeat 3 (run 540 done, 699 min elapsed)
+==> [07:16:47] network: wan
+==> [07:16:54] part A, wan, repeat 1 (run 648 done, 741 min elapsed)
+==> [07:59:09] part A, wan, repeat 2 (run 756 done, 783 min elapsed)
+==> [08:41:29] part A, wan, repeat 3 (run 864 done, 825 min elapsed)
+==> [09:23:48] network: lan
+==> [09:23:54] part B export, lan, repeat 1 (run 972 done, 868 min elapsed)
+==> [09:38:02] part B export, lan, repeat 2 (run 1008 done, 882 min elapsed)
+==> [09:52:10] part B export, lan, repeat 3 (run 1044 done, 896 min elapsed)
+==> [10:06:15] network: wan
+==> [10:06:21] part B export, wan, repeat 1 (run 1080 done, 910 min elapsed)
+==> [10:20:32] part B export, wan, repeat 2 (run 1116 done, 924 min elapsed)
+==> [10:34:43] part B export, wan, repeat 3 (run 1152 done, 939 min elapsed)
+==> [10:48:50] network: lan
+==> [10:48:56] part B import + quote, repeat 1 (run 1188 done, 953 min elapsed)
+==> [11:03:06] part B import + quote, repeat 2 (run 1224 done, 967 min elapsed)
+==> [11:17:17] part B import + quote, repeat 3 (run 1260 done, 981 min elapsed)
+==> [11:31:19] part B feed, repeat 1 (run 1296 done, 995 min elapsed)
+==> [11:38:57] part B feed, repeat 2 (run 1312 done, 1003 min elapsed)
+==> [11:46:36] part B feed, repeat 3 (run 1328 done, 1011 min elapsed)
+==> [11:54:20] all 1344 runs finished in 1018 min
+==> [11:54:22] report: results/x2-full/report.md
+==> [11:54:22] restoring the stack to compose defaults (experiment 1, PostgreSQL)

@@ -1,0 +1,17 @@
+{
+  "session": "x2-full", "started_at": "2026-11-06T13:24:41Z",
+  "host_os": "MINGW64_NT-10.0-26200 3.4.10-87d57229.x86_64",
+  "docker": {"server": "29.7.2", "kernel": "6.18.54.1-microsoft-standard-WSL2", "os": "linux/amd64"},
+  "docker_vm": {"cpus": 12, "memory_bytes": 8175534080},
+  "cpu_model": "12th Gen Intel(R) Core(TM) i5-12450H",
+  "server_cpuset": "2", "loadgen_cpuset": "3-11", "server_memory": "1g", "gomemlimit": "900MiB",
+  "gzip_level": 1, "data_source": "none",
+  "networks": {"lan": "tc qdisc del dev eth0 root 2>/dev/null; true", "dc": "tc qdisc del dev eth0 root 2>/dev/null; tc qdisc add dev eth0 root handle 1: netem delay 0.25ms limit 100000 && tc qdisc add dev eth0 parent 1:1 handle 10: tbf rate 1gbit burst 256kb latency 10ms", "wan": "tc qdisc del dev eth0 root 2>/dev/null; tc qdisc add dev eth0 root handle 1: netem delay 10ms limit 100000 && tc qdisc add dev eth0 parent 1:1 handle 10: tbf rate 100mbit burst 256kb latency 50ms"},
+  "images": {
+    "go-rest": "sha256:5005db0d694c0ff61b7102b1be40b952f885361628998d7d7b636c2093e10ae7",
+    "go-grpc": "sha256:e08b680c9a43a1df450a9167e9bddb539421fc146996ade6b6b3d58fd8aa711a",
+    "ts-rest": "sha256:917a23816932b62be206f3b6826194ae5df34b9b3ae8d9f0228f610404b1d79f",
+    "loadgen": "sha256:138db5d6bfcaa0ea9c6836a08e8072fd4d21e0ede0798c571e942d9f22c5e57c"
+  },
+  "options": {"parts": "a b", "repeat": 3, "warmup": "5s", "duration": "15s", "cooldown": 2, "quick": 0}
+}

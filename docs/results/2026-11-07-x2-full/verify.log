@@ -1,0 +1,4 @@
+go-rest  42 checks passed, 0 failed (1.4s)
+ts-rest  42 checks passed, 0 failed (1.6s)
+go-grpc  40 checks passed, 0 failed (0.7s)
+PASS: every server returns identical experiment-2 data

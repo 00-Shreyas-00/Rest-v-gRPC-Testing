@@ -1,0 +1,11 @@
+{"runtime":"node","profile":"text","count":10,"json_bytes":11010,"json_encode_us":6.937,"json_decode_us":5.158}
+{"runtime":"node","profile":"text","count":250,"json_bytes":275441,"json_encode_us":407.965,"json_decode_us":124.914}
+{"runtime":"node","profile":"text","count":4000,"json_bytes":4411341,"json_encode_us":9151.633,"json_decode_us":2145.598}
+{"runtime":"node","profile":"numeric","count":10,"json_bytes":21687,"json_encode_us":96.512,"json_decode_us":38.227}
+{"runtime":"node","profile":"numeric","count":250,"json_bytes":542252,"json_encode_us":2452.695,"json_decode_us":887.434}
+{"runtime":"node","profile":"numeric","count":4000,"json_bytes":8680696,"json_encode_us":50891.805,"json_decode_us":15180.3}
+{"runtime":"node","profile":"binary","count":10,"json_bytes":14350,"json_encode_us":12.683,"json_decode_us":5.797}
+{"runtime":"node","profile":"binary","count":250,"json_bytes":358941,"json_encode_us":700.286,"json_decode_us":158.023}
+{"runtime":"node","profile":"binary","count":4000,"json_bytes":5747341,"json_encode_us":8274.21,"json_decode_us":3390.555}
+{"runtime":"node","profile":"small","count":1000,"json_bytes":85020,"json_encode_us":174.945,"json_decode_us":344.082}
+{"runtime":"node","profile":"small","count":100000,"json_bytes":8701709,"json_encode_us":41141.602,"json_decode_us":28624.876}

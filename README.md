@@ -20,6 +20,10 @@ it cannot say which variable caused a difference.
 > **Status:** All ten phases are implemented, and the full benchmark matrix has been run:
 > both data modes, all workloads, 1–1000 VUs, 3 repeats, 756 runs on 2026-11-06. See
 > [Results](#results).
+>
+> **Experiment 2** (large payloads and streaming, three emulated networks) has also been
+> run in full: 1344 runs on 2026-11-06/07. See
+> [Experiment 2 results](#experiment-2-results).
 
 ## Quick start
 
@@ -217,7 +221,8 @@ buffers per connection).
   ratios. Multi-core scaling, where Go and Node.js differ most, is not covered.
 - **Loopback network.** Container-to-container traffic has almost no latency or
   bandwidth limit, which hides Protobuf's main advantage, smaller payloads. Over a real
-  network, gRPC's 35% size saving would matter more.
+  network, gRPC's 35% size saving would matter more. Experiment 2 tests this with
+  emulated networks; see [Experiment 2 results](#experiment-2-results).
 - **One workload shape.** These are small read-only CRUD requests against a single table,
   with no writes, auth, or business logic.
 - **Default serializers.** Neither server uses a code-generated or schema-compiled JSON
@@ -233,6 +238,202 @@ Reproduce the session (about 8 hours; disable sleep and screen-off first):
 ```bash
 scripts/run-matrix.sh --session my-run --repeat 3 --warmup 10s --duration 20s --cooldown 3
 ```
+
+## Experiment 2: large payloads and streaming
+
+Experiment 1 found that gRPC loses on small CRUD messages. Experiment 2 asks the
+opposite question: **under what workloads does gRPC's communication model give a
+measurable advantage over REST?** It uses the same three servers and adds:
+
+- **Large payloads** (`GET /x2/payload`, `GetPayload`):
+  - text, numeric and binary item profiles, about 10 KB to 4 MB per response
+  - gzip off or on (level 1 on every server)
+  - three emulated networks (`netem` + `tbf`): unlimited lan, 1 Gbit/s with 0.5 ms
+    RTT, and 100 Mbit/s with 20 ms RTT
+- **Streaming:**
+  - bulk export: JSON array vs NDJSON vs gRPC unary vs gRPC server stream
+  - bulk import: JSON array vs NDJSON vs gRPC unary vs gRPC client stream
+  - many small calls: REST vs gRPC unary vs one bidirectional stream per client
+  - a server-push price feed: SSE vs gRPC streams, including 100 streams per connection
+- **A custom Go load generator** (`go-server/cmd/loadgen`), the same client code for
+  every server. It records time to first item, bytes on the wire, delivery latency, and
+  the server's CPU and peak memory per run.
+- **Deterministic data**, generated identically in Go and TypeScript and verified
+  byte for byte before every session (`loadgen verify`).
+
+The full design, hypotheses and threats to validity are in
+[docs/experiment-2-design.md](docs/experiment-2-design.md). No PostgreSQL is needed:
+the servers run with `DATA_SOURCE=none`.
+
+### Experiment 2 results
+
+The 2026-11-06/07 session ran the full matrix: 1344 runs, 3 repeats each, with 0 failed
+runs, 0 errors, 0 server restarts, and the load generator never CPU-bound. The full
+report, CSV and raw per-run data are in
+[docs/results/2026-11-07-x2-full/](docs/results/2026-11-07-x2-full/report.md).
+
+**Setup:** the same laptop and versions as experiment 1. Each server is pinned to one
+vCPU (1 GiB); the load generator runs on 9 vCPUs. Each point is the median of 3
+repeats. Networks:
+- **lan:** no shaping.
+- **dc:** 0.5 ms RTT, 1 Gbit/s.
+- **wan:** 20 ms RTT, 100 Mbit/s.
+
+**In short:** gRPC's advantage comes from **Protobuf being smaller and cheaper to encode,
+mostly for numeric data**. Streaming as such did not make anything faster. It helped
+only where it removes a per-call or per-connection cost: many small calls on one
+long-lived stream, and many subscribers sharing a connection. Once the network is the
+bottleneck, the remaining gap is the difference in bytes on the wire.
+
+#### Part A: large payloads
+
+Payload sizes (4000 items) and Go gRPC ÷ Go REST throughput, 1 and 16 clients:
+
+| profile | JSON | Protobuf | JSON gzip | lan | dc | wan | lan, gzip | wan, gzip |
+|---|---:|---:|---:|---|---|---|---|---|
+| numeric (timestamps, doubles) | 8.68 MB | 3.81 MB | 3.89 MB | **5.96–6.18×** | **2.29–2.98×** | **2.31–2.44×** | 2.35–3.12× | 1.31–1.35× |
+| binary (base64 in JSON) | 5.75 MB | 4.21 MB | 4.38 MB | 1.84–1.88× | 1.37–1.54× | 1.37–1.53× | 1.16–2.52× | 1.02–1.07× |
+| text (long strings) | 4.41 MB | 4.21 MB | 1.69 MB | 1.67–1.73× | 1.05–1.22× | 1.05–1.10× | 0.87–0.96× | 0.85–1.01× |
+
+- **Numeric data is where gRPC wins.** JSON writes each number as decimal text, so the
+  response is 2.3× larger and costs about 6× more server CPU to encode (4000 items:
+  24.7 ms for Go REST, 51.7 ms for TS REST, 3.9 ms for Go gRPC). On lan the CPU cost
+  sets the gap (6×); on dc and wan the bytes do (2.3–3×).
+- **gzip closes the size gap but not the CPU gap.** JSON+gzip is about as small as raw
+  Protobuf, but compressing it costs 4× more CPU than encoding it. On the wan, gzipped
+  numeric JSON still delivered 1.3× fewer responses than gzipped Protobuf, and never
+  overtook uncompressed Protobuf.
+- **Text gains nothing.** The sizes are within 5%. With gzip, gRPC was slightly slower
+  (0.77–1.01×) at about the same server CPU. A likely cause, not measured: grpc-go
+  compresses the whole message before sending it, while net/http sends the compressed
+  body as it is produced.
+- **Small responses (10 items) are a tie** on dc and wan (within 5%), because the round
+  trip dominates. On lan they ranged from 0.8× to 2.6×; numeric data at 16 clients
+  gained the most.
+- **Go vs Node.js (REST):** Go was 1.0–3× faster on lan (more with larger responses), and up to 6× with gzip on
+  binary data (Node's gzip of base64 text costs 116 ms per 4000-item response against
+  20 ms for Go). On wan the two REST servers were nearly equal: both fill the
+  100 Mbit/s link.
+
+#### Part B: streaming
+
+**Bulk export** (100,000 items, one client unless stated):
+
+| | Go REST array | Go REST NDJSON | TS REST array | TS REST NDJSON | gRPC one message | gRPC stream |
+|---|---:|---:|---:|---:|---:|---:|
+| lan items/s | 4.2M | 2.6M | 2.8M | 2.5M | **7.3M** | 1.8M |
+| wan items/s | 134k | 142k | 128k | 141k | **228k** | 194k |
+| wan time to first item | 755 ms | **21 ms** | 768 ms | **21 ms** | 437 ms | **23 ms** |
+| wan time to first item, 8 clients | 5.9 s | **77 ms** | 5.3 s | **77 ms** | 3.0 s | **75 ms** |
+
+- **Streaming wins on time to first item:** one round trip (about 21 ms on the wan)
+  instead of the whole transfer. NDJSON and gRPC streams are equal here.
+- **Streaming loses on total throughput.** A gRPC stream sends one message per item,
+  and the per-message framing costs 4× the server CPU of one large message (54 vs 13 ms
+  per 100k items). On lan the stream delivered 4× fewer items per second.
+- **On the wan, gRPC is ahead by its byte savings:** from 10k items (or 8 clients) it
+  delivered 190–245k items/s against about 140k for REST, which is the link limit for
+  the larger JSON.
+- **Peak memory:** streaming lowered the TS server's peak RSS (189 vs 294 MB) and did
+  not change gRPC's (about 160 MB). Go REST's NDJSON export peaked higher than its
+  single response (338 vs 155 MB).
+
+**Bulk import** (10,000 small items, one client): a single gRPC message was fastest at
+3.6M items/s. The gRPC client stream managed 1.2M and Go REST only 0.73–0.82M. Go's
+`encoding/json` decoding is the bottleneck, so TS REST (1.6–1.7M) was 2× faster than
+Go REST here.
+
+**Many small calls** (quote lookups, calls per second):
+
+| clients | Go REST | TS REST | gRPC unary | gRPC bidirectional stream |
+|---:|---:|---:|---:|---:|
+| 1 | 9,975 | 8,987 | 7,288 | **10,720** |
+| 16 | **72,510** | 38,486 | 34,852 | 63,818 |
+| 128 | 63,522 | 37,129 | 38,454 | **75,723** |
+
+- **One long-lived stream per client is 1.5–2× faster than unary gRPC**, at half the
+  server CPU per call (13 vs 26 µs). It had the best p99 at 128 clients (3.8 ms, against
+  5.2 ms for Go REST and 8.8 ms for gRPC unary).
+- **It only matches Go REST with keep-alive** (0.88–1.19×). Unary gRPC was 1.4–2.1×
+  slower than Go REST, as in experiment 1.
+
+**Server-push price feed** (20 events/s to every subscriber):
+
+| subscribers | SSE Go | SSE TS | gRPC, a connection each | gRPC, 100 streams per connection |
+|---:|---|---|---|---|
+| 1000 | p99 26 ms, CPU 48% | p99 27 ms, 53% | p99 30 ms, 77% | **p99 11 ms, 12%** |
+| 5000 | p99 49 ms, 97%, all delivered | p99 49 ms, 97%, 99.8% | p99 209 ms, 99%, 98.9% | **p99 41 ms, 47%, all delivered** |
+
+- **With a connection per subscriber, gRPC is the most expensive:** 38 µs of CPU per
+  delivered event at 1000 subscribers against 24 µs for SSE. At 5000 subscribers its
+  core was saturated, p99 latency reached 209 ms and 1.1% of events were dropped.
+- **Multiplexing streams is where gRPC wins:** with 100 streams per connection, the CPU
+  per event fell to about 6 µs (a quarter of SSE's, and 2–6.5× less than gRPC with a
+  connection each), with the lowest latency and no drops.
+  HTTP/1.1 SSE cannot share a connection between subscribers.
+
+#### Hypotheses vs results
+
+| hypothesis (from the [design](docs/experiment-2-design.md#hypotheses-stated-before-running)) | result |
+|---|---|
+| 1. Text: no meaningful gRPC advantage | **Confirmed** on dc and wan. On lan, gRPC was 1.7× faster without gzip (cheaper encoding), and 0.9× with gzip. |
+| 2. Numeric/binary on the wan: about the size ratio | **Confirmed:** 2.3–2.4× numeric, 1.4–1.5× binary. On lan the gap was larger (CPU-bound). |
+| 3. gzip closes the gap; JSON+gzip can beat raw Protobuf on the wan | **Partly.** It closes the size gap, but the compression CPU kept gzipped JSON behind, and it never beat raw Protobuf for numeric data. |
+| 4. Streaming cuts time to first item and peak memory | **Time to first item confirmed** (up to 77× lower at 100k items on the wan). Memory only for TS REST. Streaming lowered total throughput. |
+| 5. Push: equal per connection; multiplexing cuts CPU | **Partly:** per-connection gRPC cost up to 2.2× more CPU per event than SSE. Multiplexing cut it by 2–6.5×. |
+| 6. A bidirectional stream beats unary gRPC and REST by a wide margin | **Partly:** 1.5–2× over unary gRPC, but only on par with Go REST keep-alive. |
+
+#### Limits of this data
+
+- **Emulated network:** `netem` + `tbf` on container interfaces, without packet loss or
+  jitter. The 20 ms RTT at 100 Mbit/s is one point; longer, lossier links would favour
+  the smaller encoding more.
+- **One core per server, one laptop.** As in experiment 1, the ratios are more useful
+  than the absolute numbers.
+- **Synthetic data:** real payloads mix the three profiles. The profiles bound the
+  effect, from no gain (text) to the largest gain (numeric).
+- **Default settings:** grpc-go, net/http and Fastify use their stock buffers and flow
+  control, with gzip at level 1.
+- **Overnight standby:** the run paused for about 8 hours during part A (dc, repeat 1);
+  the runs on either side match their repeats within about 1%, so none was excluded.
+  Details in the [session notes](docs/results/2026-11-07-x2-full/README.md).
+
+### Running experiment 2
+
+Before a long run:
+1. Plug the laptop in.
+2. Keep the machine otherwise idle.
+3. Stop Windows from sleeping or turning the screen off. Screen-off triggers Modern
+   Standby, which ruined the 2026-11-05 session. In an administrator PowerShell:
+
+```powershell
+powercfg /change monitor-timeout-ac 0; powercfg /change standby-timeout-ac 0; powercfg /change hibernate-timeout-ac 0
+```
+
+Then:
+
+```bash
+scripts/run-x2.sh --dry-run
+```
+```bash
+scripts/run-x2.sh --quick --session x2-quick
+```
+```bash
+scripts/run-x2.sh --session x2-full --repeat 3 2>&1 | tee results/x2-full.log
+```
+
+- **`--dry-run`** prints the plan and the time estimate.
+- **`--quick`** is a 10-minute check of the whole pipeline.
+- **The full session** takes about 10 h. The two parts can also run on separate nights:
+  `--parts a` (large payloads, about 7 h) and `--parts b` (streaming, about 3 h).
+
+**What the script does:**
+1. Builds the images and starts the servers (`DATA_SOURCE=none`, one pinned core each)
+   and the load generator.
+2. Runs the equivalence check and the codec micro-benchmarks.
+3. Runs every point.
+4. Writes `results/<session>/report.md` and `report.csv`.
+5. Afterwards, restores the stack to the experiment-1 defaults.
 
 ## Architecture
 
@@ -266,7 +467,8 @@ uses the same queries and the same validation rules.
 │   ├── go.mod                     module go-vs-ts-benchmark/go-server, pgx v5, grpc v1.84
 │   ├── cmd/rest-server/           REST entry point (graceful shutdown, -healthcheck)
 │   ├── cmd/grpc-server/           gRPC entry point (graceful shutdown, -healthcheck)
-│   ├── gen/productv1/             generated protobuf + gRPC code (committed)
+│   ├── cmd/loadgen/               experiment-2 load generator: run, verify, codec
+│   ├── gen/productv1/, gen/x2v1/  generated protobuf + gRPC code (committed)
 │   ├── equivalence/               black-box test of all three running servers
 │   └── internal/
 │       ├── config/                environment variables (shared with TS)
@@ -276,7 +478,9 @@ uses the same queries and the same validation rules.
 │       ├── service/               validation + delegation (shared by REST and gRPC)
 │       ├── rest/                  net/http handlers (standard library router)
 │       ├── grpcapi/               gRPC handlers, health service, reflection
-│       └── monitoring/            runtime metrics endpoint (METRICS_PORT)
+│       ├── monitoring/            runtime metrics endpoint (METRICS_PORT)
+│       ├── x2data/                experiment-2 deterministic data generator
+│       └── x2/                    experiment-2 REST + gRPC endpoints, feed hub
 ├── typescript-server/             Node.js 24, Fastify 5, node-postgres 8, TypeScript 7
 │   ├── Dockerfile
 │   ├── src/
@@ -286,6 +490,7 @@ uses the same queries and the same validation rules.
 │   │   ├── routes/                Fastify routes, body/param decoding
 │   │   ├── app.ts                 Fastify setup, data-source wiring
 │   │   ├── monitoring.ts          runtime metrics endpoint (METRICS_PORT)
+│   │   ├── x2/                    experiment-2 routes, data generator (port of x2data), codec bench
 │   │   └── main.ts                entry point (graceful shutdown)
 │   └── test/                      node:test suites (unit, HTTP, Postgres contract)
 ├── benchmark/                     k6 scripts (run by scripts/bench.sh)
@@ -295,14 +500,17 @@ uses the same queries and the same validation rules.
 │   ├── scenarios.js               warm-up + measured phase + monitor, result output
 │   └── lib/                       target config, REST/gRPC client, inputs, server monitor
 ├── proto/
-│   └── product.proto              ProductService definition
+│   ├── product.proto              ProductService definition
+│   └── x2.proto                   experiment-2 X2Service (payloads, streams)
 ├── scripts/
 │   ├── run-matrix.sh              full session: equivalence, every mode/workload/level, report
 │   ├── bench.sh                   runs a workload across servers and concurrency levels
 │   ├── report.sh, report.mjs      aggregates results into report.md / report.csv
 │   ├── db.sh                      database lifecycle (wraps database/manage.sh)
 │   ├── equivalence.sh             runs the equivalence suite against the built images
-│   └── gen-proto.sh               regenerates go-server/gen/productv1 in Docker
+│   ├── run-x2.sh, report-x2.mjs   experiment 2: full session (netem, loadgen) and report
+│   └── gen-proto.sh               regenerates go-server/gen/{productv1,x2v1} in Docker
+├── docs/experiment-2-design.md   experiment 2 methodology
 ├── docs/results/                  published benchmark sessions (report, CSV, raw runs)
 ├── results/                       local benchmark output (git-ignored)
 ├── docker-compose.yml             stack with CPU quotas (default)
