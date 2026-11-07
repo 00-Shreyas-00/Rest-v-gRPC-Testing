@@ -26,10 +26,15 @@ type App struct {
 // Build opens the configured data source.
 //
 // postgres: requests query PostgreSQL through a pool of cfg.DBMaxConns.
+// none:     no product API (Service is nil); experiment-2 endpoints only.
 // memory:   the products table is loaded once at startup, the pool is closed,
 //
 //	and requests never touch the database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error) {
+	if cfg.DataSource == config.DataSourceNone {
+		log.Info("data source ready", "data_source", cfg.DataSource)
+		return &App{Health: func(context.Context) error { return nil }, Close: func() {}}, nil
+	}
 	connectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

@@ -23,10 +23,17 @@ x-server: &server
     LOG_LEVEL: ${LOG_LEVEL:-info}
     LOG_REQUESTS: ${LOG_REQUESTS:-false}
     METRICS_PORT: "9100"
+    # Go only; empty = unset. Experiment 2 sets it so Go runs its GC before
+    # the container memory limit instead of being OOM-killed.
+    GOMEMLIMIT: ${GOMEMLIMIT:-}
   # Identical CPU and memory limits for every server. Go sets GOMAXPROCS from
   # the CPU limit; Node.js runs JavaScript on one thread regardless.
   cpus: ${SERVER_CPUS:-2}
   mem_limit: ${SERVER_MEMORY:-1g}
+  ulimits:
+    nofile:
+      soft: 1048576
+      hard: 1048576
 
 x-postgres-env: &postgres-env
   POSTGRES_USER: ${POSTGRES_USER:-bench}
@@ -117,6 +124,26 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+
+  # Experiment-2 load generator (Go; cmd/loadgen) on the compose network.
+  # Idles until scripts/run-x2.sh runs measurements in it with
+  # `docker compose exec`. NET_ADMIN: it applies netem to its own interface.
+  # Not started by `docker compose up` (x2 profile).
+  loadgen:
+    build:
+      context: ./go-server
+      target: loadgen
+    image: go-vs-ts-benchmark/loadgen:local
+    profiles: [x2]
+    init: true
+    cap_add: [NET_ADMIN]
+    cpus: ${LOADGEN_CPUS:-6}
+    volumes:
+      - ./results:/results
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
 
   # Go toolchain for tests and code generation without a local Go install:
   #   docker compose run --rm go go test ./...

@@ -13,7 +13,8 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/rest-server ./cmd/rest-server && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/grpc-server ./cmd/grpc-server
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/grpc-server ./cmd/grpc-server && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/loadgen ./cmd/loadgen
 
 # distroless/static-debian13:nonroot, pinned by digest.
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329 AS runtime-base
@@ -34,3 +35,13 @@ EXPOSE 9090
 HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --start-interval=1s --retries=3 \
     CMD ["/app/grpc-server", "-healthcheck"]
 ENTRYPOINT ["/app/grpc-server"]
+
+# Experiment-2 load generator. Alpine (not distroless) for `tc`: the same image
+# applies network emulation (netem) to its own interface and, via
+# `docker run --network container:<server>`, to the servers. It idles
+# (`sleep infinity`) and runs measurements through `docker compose exec`.
+FROM alpine:3.22 AS loadgen
+RUN apk add --no-cache iproute2-tc
+COPY --from=build /out/loadgen /usr/local/bin/loadgen
+ENTRYPOINT []
+CMD ["sleep", "infinity"]

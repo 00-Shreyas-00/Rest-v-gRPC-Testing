@@ -1,0 +1,91 @@
+// Experiment 2: large payloads and streaming. See docs/experiment-2-design.md.
+//
+// gRPC                                   REST (Go REST and TypeScript REST)
+//   GetPayload(profile, count)             GET  /x2/payload?profile=&count=        {"items":[...]}
+//   ExportUnary(count)                     GET  /x2/export?count=&format=json      {"items":[...]}
+//   ExportStream(count) -> stream Item     GET  /x2/export?count=&format=ndjson    one item per line
+//   ImportUnary(ItemList)                  POST /x2/import  application/json       {"items":[...]}
+//   ImportStream(stream Item)              POST /x2/import  application/x-ndjson  one item per line
+//   Subscribe(rate) -> stream PriceEvent   GET  /x2/feed?rate=                     Server-Sent Events
+//   GetQuote(id)                           GET  /x2/quote/{id}
+//   QuoteStream(stream id) -> stream Quote (no REST equivalent: one HTTP request per quote)
+//
+// Data is generated deterministically from item ids (internal/x2data in Go,
+// src/x2/data.ts in TypeScript); every server returns identical content.
+// Invalid arguments -> INVALID_ARGUMENT (REST 400 {"error": "..."}).
+//
+// Generated code: scripts/gen-proto.sh -> go-server/gen/x2v1.
+syntax = "proto3";
+
+package x2.v1;
+
+option go_package = "go-vs-ts-benchmark/go-server/gen/x2v1;x2v1";
+
+service X2Service {
+  rpc GetPayload(PayloadRequest) returns (ItemList);
+  rpc ExportUnary(ExportRequest) returns (ItemList);
+  rpc ExportStream(ExportRequest) returns (stream Item);
+  rpc ImportUnary(ItemList) returns (ImportSummary);
+  rpc ImportStream(stream Item) returns (ImportSummary);
+  rpc Subscribe(SubscribeRequest) returns (stream PriceEvent);
+  rpc GetQuote(QuoteRequest) returns (Quote);
+  rpc QuoteStream(stream QuoteRequest) returns (stream Quote);
+}
+
+// A catalog item. The base fields (1-5) are always set. Each payload profile
+// adds one heavy field:
+//   text:    description (1000 ASCII characters)
+//   numeric: timestamps + values (64 each; unix ms and full-precision doubles)
+//   binary:  thumbnail (1000 random bytes; base64 in JSON)
+// Export and import use base items only ("small").
+message Item {
+  int64 id = 1;
+  string sku = 2;
+  string name = 3;
+  double price = 4;
+  int32 stock = 5;
+  string description = 6;
+  repeated int64 timestamps = 7;
+  repeated double values = 8;
+  bytes thumbnail = 9;
+}
+
+message ItemList {
+  repeated Item items = 1;
+}
+
+message PayloadRequest {
+  string profile = 1; // text | numeric | binary
+  int32 count = 2;    // 1..4000, items 1..count
+}
+
+message ExportRequest {
+  int32 count = 1; // 1..100000, items 1..count
+}
+
+message ImportSummary {
+  int64 count = 1;
+  int64 id_sum = 2;
+  int64 stock_sum = 3;
+}
+
+message SubscribeRequest {
+  int32 rate = 1; // events per second, 1..1000; every subscriber gets every event
+}
+
+message PriceEvent {
+  int64 seq = 1;
+  int64 item_id = 2;
+  double price = 3;
+  int64 sent_at_us = 4; // unix microseconds when the server created the event
+}
+
+message QuoteRequest {
+  int64 id = 1; // 1..100000
+}
+
+message Quote {
+  int64 id = 1;
+  double price = 2;
+  int32 stock = 3;
+}

@@ -14,11 +14,13 @@ import (
 const (
 	DataSourcePostgres = "postgres"
 	DataSourceMemory   = "memory"
+	// DataSourceNone serves only the experiment-2 endpoints (internal/x2); no database.
+	DataSourceNone = "none"
 )
 
 // Config is the runtime configuration shared by the REST and gRPC servers.
 type Config struct {
-	DataSource  string     // DATA_SOURCE: postgres | memory
+	DataSource  string     // DATA_SOURCE: postgres | memory | none
 	DatabaseURL string     // DATABASE_URL
 	DBMaxConns  int32      // DB_MAX_CONNS: pool size, identical across implementations
 	HTTPPort    int        // HTTP_PORT (REST server)
@@ -60,8 +62,8 @@ func load(getenv func(string) string) (Config, error) {
 		MetricsPort: intVar("METRICS_PORT", 9100, 0, 65535),
 	}
 
-	if cfg.DataSource != DataSourcePostgres && cfg.DataSource != DataSourceMemory {
-		errs = append(errs, fmt.Sprintf("DATA_SOURCE must be %q or %q, got %q", DataSourcePostgres, DataSourceMemory, cfg.DataSource))
+	if cfg.DataSource != DataSourcePostgres && cfg.DataSource != DataSourceMemory && cfg.DataSource != DataSourceNone {
+		errs = append(errs, fmt.Sprintf("DATA_SOURCE must be %q, %q or %q, got %q", DataSourcePostgres, DataSourceMemory, DataSourceNone, cfg.DataSource))
 	}
 	if err := cfg.LogLevel.UnmarshalText([]byte(get("LOG_LEVEL", "info"))); err != nil {
 		errs = append(errs, fmt.Sprintf("LOG_LEVEL: %v", err))

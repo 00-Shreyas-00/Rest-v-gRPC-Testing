@@ -20,12 +20,16 @@ import (
 	"go-vs-ts-benchmark/go-server/gen/productv1"
 	"go-vs-ts-benchmark/go-server/internal/product"
 	"go-vs-ts-benchmark/go-server/internal/service"
+	"go-vs-ts-benchmark/go-server/internal/x2"
 )
 
 // Register adds the product service, the standard health service and server
 // reflection (for grpcurl and k6) to s.
 func Register(s *grpc.Server, svc *service.Service, health func(context.Context) error, log *slog.Logger) {
-	productv1.RegisterProductServiceServer(s, &productServer{svc: svc, log: log})
+	if svc != nil { // nil with DATA_SOURCE=none
+		productv1.RegisterProductServiceServer(s, &productServer{svc: svc, log: log})
+	}
+	x2.RegisterGRPC(s) // experiment 2
 	healthgrpc.RegisterHealthServer(s, &healthServer{check: health, log: log})
 	reflection.Register(s)
 }

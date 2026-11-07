@@ -18,12 +18,14 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "google.golang.org/grpc/encoding/gzip" // responds gzip-compressed when the client compresses
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 
 	"go-vs-ts-benchmark/go-server/internal/app"
 	"go-vs-ts-benchmark/go-server/internal/config"
 	"go-vs-ts-benchmark/go-server/internal/grpcapi"
 	"go-vs-ts-benchmark/go-server/internal/monitoring"
+	"go-vs-ts-benchmark/go-server/internal/x2"
 )
 
 func main() {
@@ -85,7 +87,8 @@ func run() error {
 	// Runtime metrics on their own port, off the benchmarked request path.
 	monitoring.Serve(ctx, cfg.MetricsPort, log)
 
-	var opts []grpc.ServerOption
+	// Experiment 2 sends messages above the 4 MB default (both directions).
+	opts := []grpc.ServerOption{grpc.MaxRecvMsgSize(x2.MaxMessageBytes), grpc.MaxSendMsgSize(x2.MaxMessageBytes)}
 	if cfg.LogRequests {
 		opts = append(opts, grpc.UnaryInterceptor(grpcapi.LoggingInterceptor(log)))
 	}

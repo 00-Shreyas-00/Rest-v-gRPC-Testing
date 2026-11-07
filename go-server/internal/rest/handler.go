@@ -35,6 +35,7 @@ import (
 
 	"go-vs-ts-benchmark/go-server/internal/product"
 	"go-vs-ts-benchmark/go-server/internal/service"
+	"go-vs-ts-benchmark/go-server/internal/x2"
 )
 
 // MaxBodyBytes limits request bodies (same limit as the TypeScript server).
@@ -62,12 +63,15 @@ func NewHandler(svc *service.Service, health func(context.Context) error, log *s
 	h := &handler{svc: svc, health: health, log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", h.getHealth)
-	mux.HandleFunc("GET /products", h.list)
-	mux.HandleFunc("GET /products/search", h.search)
-	mux.HandleFunc("GET /products/{id}", h.get)
-	mux.HandleFunc("POST /products", h.create)
-	mux.HandleFunc("PUT /products/{id}", h.update)
-	mux.HandleFunc("DELETE /products/{id}", h.delete)
+	if svc != nil { // nil with DATA_SOURCE=none
+		mux.HandleFunc("GET /products", h.list)
+		mux.HandleFunc("GET /products/search", h.search)
+		mux.HandleFunc("GET /products/{id}", h.get)
+		mux.HandleFunc("POST /products", h.create)
+		mux.HandleFunc("PUT /products/{id}", h.update)
+		mux.HandleFunc("DELETE /products/{id}", h.delete)
+	}
+	x2.RegisterREST(mux) // experiment 2: /x2/...
 	// Unknown paths and unsupported methods both get a JSON 404, as in the TS server.
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusNotFound, errorBody{Error: "not found"})

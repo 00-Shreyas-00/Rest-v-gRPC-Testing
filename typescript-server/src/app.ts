@@ -8,12 +8,14 @@ import { MemoryRepository } from './repository/memory.ts';
 import { PostgresRepository, createPool } from './repository/postgres.ts';
 import { registerProductRoutes, sendJSON } from './routes/products.ts';
 import { ProductService } from './service/service.ts';
+import { registerX2Routes } from './x2/routes.ts';
 
 /** Same request body limit as the Go server. */
 export const MAX_BODY_BYTES = 1 << 20;
 
 export interface AppOptions {
-  service: ProductService;
+  /** null with DATA_SOURCE=none: experiment-2 routes only. */
+  service: ProductService | null;
   /** Resolves when the data source can serve requests. Only used by GET /health. */
   health: () => Promise<void>;
   log: Logger;
@@ -45,7 +47,8 @@ export function buildApp({ service, health, log, logRequests }: AppOptions): Fas
     }
   });
 
-  registerProductRoutes(app, service, log);
+  if (service) registerProductRoutes(app, service, log);
+  registerX2Routes(app); // experiment 2: /x2/...
 
   // Unknown paths and unsupported methods: JSON 404, as in the Go server.
   app.setNotFoundHandler((_req, reply) => sendJSON(reply, 404, { error: 'not found' }));
@@ -76,17 +79,22 @@ export function buildApp({ service, health, log, logRequests }: AppOptions): Fas
 }
 
 export interface DataSource {
-  service: ProductService;
+  service: ProductService | null;
   health: () => Promise<void>;
   close: () => Promise<void>;
 }
 
 /**
  * postgres: requests query PostgreSQL through a pool of DB_MAX_CONNS.
+ * none:     no product API, experiment-2 routes only.
  * memory:   the table is loaded once at startup, the pool is closed, and
  *           requests never touch the database.
  */
 export async function openDataSource(cfg: Config, log: Logger): Promise<DataSource> {
+  if (cfg.dataSource === 'none') {
+    log.info('data source ready', { data_source: cfg.dataSource });
+    return { service: null, health: async () => {}, close: async () => {} };
+  }
   const pool: pg.Pool = createPool(cfg.databaseUrl, cfg.dbMaxConns);
   pool.on('error', (err) => log.error('idle database client error', { err: String(err) }));
   const ping = async () => {

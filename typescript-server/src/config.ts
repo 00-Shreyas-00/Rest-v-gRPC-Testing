@@ -1,7 +1,7 @@
 // Server configuration from environment variables. Same variables and defaults
 // as the Go servers (go-server/internal/config).
 
-export type DataSource = 'postgres' | 'memory';
+export type DataSource = 'postgres' | 'memory' | 'none';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface Config {
@@ -31,8 +31,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
 
   const dataSource = get('DATA_SOURCE', 'postgres').toLowerCase();
-  if (dataSource !== 'postgres' && dataSource !== 'memory') {
-    errors.push(`DATA_SOURCE must be "postgres" or "memory", got "${dataSource}"`);
+  if (dataSource !== 'postgres' && dataSource !== 'memory' && dataSource !== 'none') {
+    errors.push(`DATA_SOURCE must be "postgres", "memory" or "none", got "${dataSource}"`);
   }
   const logLevel = get('LOG_LEVEL', 'info').toLowerCase();
   if (!['debug', 'info', 'warn', 'error'].includes(logLevel)) {

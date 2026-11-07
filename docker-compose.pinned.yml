@@ -21,3 +21,6 @@ services:
   k6:
     cpus: 0
     cpuset: "${K6_CPUSET:-6-11}"
+  loadgen:
+    cpus: 0
+    cpuset: "${LOADGEN_CPUSET:-3-11}"
